@@ -51,11 +51,13 @@ function CommentItem({
 
   return (
     <div className={`${depth > 0 ? 'ml-6 border-l border-zinc-700 pl-4' : ''}`}>
-      <div className={`py-2 px-3 rounded-lg ${isEmpathy ? 'bg-emerald-900/10' : 'bg-rose-900/10'}`}>
+      <div className={`py-2 px-3 rounded-lg ${isAuthor ? 'bg-zinc-800/50' : isEmpathy ? 'bg-emerald-900/10' : 'bg-rose-900/10'}`}>
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className={`text-xs px-1.5 py-0.5 rounded ${isEmpathy ? 'bg-emerald-600/20 text-emerald-400' : 'bg-rose-600/20 text-rose-400'}`}>
-            {isEmpathy ? '공감' : '비공감'}
-          </span>
+          {!isAuthor && (
+            <span className={`text-xs px-1.5 py-0.5 rounded ${isEmpathy ? 'bg-emerald-600/20 text-emerald-400' : 'bg-rose-600/20 text-rose-400'}`}>
+              {isEmpathy ? '공감' : '비공감'}
+            </span>
+          )}
           <span className={`text-xs font-medium ${isAuthor ? 'text-emerald-400' : isCurrentUser ? 'text-blue-400' : 'text-zinc-400'}`}>
             {isAuthor ? '작성자' : isCurrentUser ? '나' : '익명'}
           </span>
@@ -121,22 +123,36 @@ interface ReactionCounts {
   disempathy: number;
 }
 
-function countReactions(comments: CommentWithReplies[]): ReactionCounts {
-  let empathy = 0;
-  let disempathy = 0;
+function countReactions(comments: CommentWithReplies[], postAuthorId: string): ReactionCounts {
+  // Track unique voters (first vote per user, excluding post author)
+  const voterReactions = new Map<string, 'empathy' | 'disempathy'>();
 
-  function count(commentList: CommentWithReplies[]) {
+  function collectVotes(commentList: CommentWithReplies[]) {
     commentList.forEach((comment) => {
-      if (comment.reaction_type === 'empathy') {
-        empathy++;
-      } else {
-        disempathy++;
+      // Skip post author's comments
+      if (comment.author_id === postAuthorId) {
+        collectVotes(comment.replies);
+        return;
       }
-      count(comment.replies);
+
+      // Only count first vote per user
+      if (!voterReactions.has(comment.author_id)) {
+        voterReactions.set(comment.author_id, comment.reaction_type);
+      }
+
+      collectVotes(comment.replies);
     });
   }
 
-  count(comments);
+  collectVotes(comments);
+
+  let empathy = 0;
+  let disempathy = 0;
+  voterReactions.forEach((reaction) => {
+    if (reaction === 'empathy') empathy++;
+    else disempathy++;
+  });
+
   return { empathy, disempathy };
 }
 
@@ -217,7 +233,7 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
     return <div className="text-zinc-500 text-center py-4">댓글 로딩 중...</div>;
   }
 
-  const reactions = countReactions(comments);
+  const reactions = countReactions(comments, postAuthorId);
   const total = reactions.empathy + reactions.disempathy;
 
   return (

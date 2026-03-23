@@ -44,27 +44,58 @@ export default function Home() {
       return;
     }
 
-    // Fetch comments with reaction types
+    // Create a map of post_id -> post_author_id
+    const postAuthorMap = new Map<string, string>();
+    (postsData as Post[]).forEach((post) => {
+      postAuthorMap.set(post.id, post.author_id);
+    });
+
+    // Fetch comments with reaction types and author
     const { data: comments, error: countError } = await supabase
       .from('comments')
-      .select('post_id, reaction_type');
+      .select('post_id, reaction_type, author_id, created_at')
+      .order('created_at', { ascending: true });
 
     if (countError) {
       console.error('Error fetching comments:', countError);
     }
 
-    // Count comments and reactions per post
+    // Count comments per post (all comments)
     const countMap = new Map<string, number>();
+    // Track unique voters per post (excluding post author, first vote only)
+    const voterMap = new Map<string, Map<string, 'empathy' | 'disempathy'>>();
+
+    comments?.forEach((c) => {
+      // Count all comments
+      countMap.set(c.post_id, (countMap.get(c.post_id) || 0) + 1);
+
+      // Skip if commenter is the post author
+      const postAuthor = postAuthorMap.get(c.post_id);
+      if (c.author_id === postAuthor) return;
+
+      // Only count first vote per user per post
+      if (!voterMap.has(c.post_id)) {
+        voterMap.set(c.post_id, new Map());
+      }
+      const postVoters = voterMap.get(c.post_id)!;
+      if (!postVoters.has(c.author_id)) {
+        postVoters.set(c.author_id, c.reaction_type);
+      }
+    });
+
+    // Calculate empathy/disempathy counts from unique voters
     const empathyMap = new Map<string, number>();
     const disempathyMap = new Map<string, number>();
 
-    comments?.forEach((c) => {
-      countMap.set(c.post_id, (countMap.get(c.post_id) || 0) + 1);
-      if (c.reaction_type === 'empathy') {
-        empathyMap.set(c.post_id, (empathyMap.get(c.post_id) || 0) + 1);
-      } else {
-        disempathyMap.set(c.post_id, (disempathyMap.get(c.post_id) || 0) + 1);
-      }
+    voterMap.forEach((voters, postId) => {
+      let empathy = 0;
+      let disempathy = 0;
+      voters.forEach((reaction) => {
+        if (reaction === 'empathy') empathy++;
+        else disempathy++;
+      });
+      empathyMap.set(postId, empathy);
+      disempathyMap.set(postId, disempathy);
     });
 
     // Merge counts into posts
