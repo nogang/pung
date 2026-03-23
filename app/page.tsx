@@ -133,7 +133,7 @@ export default function Home() {
                 post={post}
                 onExpire={() => handlePostExpire(post.id)}
                 isMine={post.author_id === authorId}
-                isNew={lastVisit > 0 && isNewSinceLastVisit(post.created_at, lastVisit)}
+                isNew={post.author_id !== authorId && lastVisit > 0 && isNewSinceLastVisit(post.created_at, lastVisit)}
               />
             </div>
           ))}

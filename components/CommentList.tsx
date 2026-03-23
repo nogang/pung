@@ -45,7 +45,7 @@ function CommentItem({
   const [showReplyForm, setShowReplyForm] = useState(false);
   const isAuthor = comment.author_id === postAuthorId;
   const isCurrentUser = comment.author_id === currentUserId;
-  const isNew = lastVisit > 0 && isNewSinceLastVisit(comment.created_at, lastVisit);
+  const isNew = comment.author_id !== currentUserId && lastVisit > 0 && isNewSinceLastVisit(comment.created_at, lastVisit);
   const replyCount = countAllReplies(comment);
   const isEmpathy = comment.reaction_type === 'empathy';
 
