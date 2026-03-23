@@ -7,6 +7,8 @@ export interface Post {
   comment_count?: number;
   empathy_count?: number;
   disempathy_count?: number;
+  new_comment_count?: number;
+  latest_comment_at?: string;
 }
 
 export interface Comment {

@@ -10,6 +10,7 @@ import {
   getLastVisitTime,
   updateLastVisitTime,
   isNewSinceLastVisit,
+  getLastPostVisitTime,
 } from '@/lib/utils';
 
 export default function Home() {
@@ -64,10 +65,26 @@ export default function Home() {
     const countMap = new Map<string, number>();
     // Track unique voters per post (excluding post author, first vote only)
     const voterMap = new Map<string, Map<string, 'empathy' | 'disempathy'>>();
+    // Track latest comment time per post
+    const latestCommentMap = new Map<string, string>();
+    // Track new comments count per post (since last visit to that post)
+    const newCommentCountMap = new Map<string, number>();
 
     comments?.forEach((c) => {
       // Count all comments
       countMap.set(c.post_id, (countMap.get(c.post_id) || 0) + 1);
+
+      // Track latest comment time
+      const currentLatest = latestCommentMap.get(c.post_id);
+      if (!currentLatest || new Date(c.created_at) > new Date(currentLatest)) {
+        latestCommentMap.set(c.post_id, c.created_at);
+      }
+
+      // Count new comments since last visit to this post
+      const lastPostVisit = getLastPostVisitTime(c.post_id);
+      if (lastPostVisit > 0 && new Date(c.created_at).getTime() > lastPostVisit) {
+        newCommentCountMap.set(c.post_id, (newCommentCountMap.get(c.post_id) || 0) + 1);
+      }
 
       // Skip if commenter is the post author
       const postAuthor = postAuthorMap.get(c.post_id);
@@ -104,6 +121,8 @@ export default function Home() {
       comment_count: countMap.get(post.id) || 0,
       empathy_count: empathyMap.get(post.id) || 0,
       disempathy_count: disempathyMap.get(post.id) || 0,
+      new_comment_count: newCommentCountMap.get(post.id) || 0,
+      latest_comment_at: latestCommentMap.get(post.id),
     }));
 
     setPosts(postsWithCounts);

@@ -116,6 +116,11 @@ export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProp
               NEW
             </span>
           )}
+          {!isNew && (post.new_comment_count ?? 0) > 0 && (
+            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full animate-pulse">
+              +{post.new_comment_count} 새 댓글
+            </span>
+          )}
           {mood === 'empathy' && total > 0 && (
             <span className="text-xs text-emerald-400">공감이 많아요</span>
           )}
