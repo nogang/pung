@@ -13,6 +13,73 @@ interface PostCardProps {
   isMine?: boolean;
 }
 
+function PieChart({ empathy, disempathy }: { empathy: number; disempathy: number }) {
+  const total = empathy + disempathy;
+  if (total === 0) return null;
+
+  const empathyPercent = (empathy / total) * 100;
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const empathyDash = (empathyPercent / 100) * circumference;
+  const disempathyDash = circumference - empathyDash;
+
+  return (
+    <div className="flex items-center gap-2">
+      <svg width="40" height="40" viewBox="0 0 40 40" className="transform -rotate-90">
+        <circle
+          cx="20"
+          cy="20"
+          r={radius}
+          fill="none"
+          stroke="#f43f5e"
+          strokeWidth="8"
+        />
+        <circle
+          cx="20"
+          cy="20"
+          r={radius}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth="8"
+          strokeDasharray={`${empathyDash} ${disempathyDash}`}
+        />
+      </svg>
+      <div className="flex flex-col text-xs">
+        <span className="text-emerald-400">{empathy} 공감</span>
+        <span className="text-rose-400">{disempathy} 비공감</span>
+      </div>
+    </div>
+  );
+}
+
+function getPostMood(empathy: number, disempathy: number): 'empathy' | 'disempathy' | 'neutral' | 'none' {
+  const total = empathy + disempathy;
+  if (total === 0) return 'none';
+
+  const empathyRatio = empathy / total;
+
+  if (empathyRatio >= 0.65) return 'empathy';
+  if (empathyRatio <= 0.35) return 'disempathy';
+  return 'neutral';
+}
+
+function getMoodStyles(mood: 'empathy' | 'disempathy' | 'neutral' | 'none', isMine: boolean) {
+  if (isMine) {
+    return 'border-emerald-600/50 bg-emerald-900/10';
+  }
+
+  switch (mood) {
+    case 'empathy':
+      return 'border-emerald-500/30 bg-emerald-900/10';
+    case 'disempathy':
+      return 'border-rose-500/30 bg-rose-900/10';
+    case 'neutral':
+      return 'border-amber-500/30 bg-amber-900/10';
+    default:
+      return 'border-zinc-700 bg-zinc-800/50';
+  }
+}
+
 export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProps) {
   const [isExpired, setIsExpired] = useState(false);
 
@@ -32,11 +99,12 @@ export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProp
   const empathy = post.empathy_count ?? 0;
   const disempathy = post.disempathy_count ?? 0;
   const total = empathy + disempathy;
-  const empathyPercent = total > 0 ? (empathy / total) * 100 : 0;
+  const mood = getPostMood(empathy, disempathy);
+  const moodStyles = getMoodStyles(mood, isMine ?? false);
 
   return (
     <Link href={`/post/${post.id}`}>
-      <article className={`bg-zinc-800/50 hover:bg-zinc-800/70 rounded-xl p-4 border transition-all cursor-pointer group ${isMine ? 'border-emerald-600/50' : 'border-zinc-700'}`}>
+      <article className={`rounded-xl p-4 border transition-all cursor-pointer group hover:brightness-110 ${moodStyles}`}>
         <div className="flex items-center gap-2 mb-2">
           {isMine && (
             <span className="text-xs bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded-full">
@@ -47,6 +115,15 @@ export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProp
             <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full animate-pulse">
               NEW
             </span>
+          )}
+          {mood === 'empathy' && total > 0 && (
+            <span className="text-xs text-emerald-400">공감이 많아요</span>
+          )}
+          {mood === 'disempathy' && total > 0 && (
+            <span className="text-xs text-rose-400">비공감이 많아요</span>
+          )}
+          {mood === 'neutral' && total > 0 && (
+            <span className="text-xs text-amber-400">의견이 나뉘어요</span>
           )}
         </div>
         <p className="text-white whitespace-pre-wrap break-words mb-3">{post.content}</p>
@@ -60,22 +137,10 @@ export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProp
               </svg>
               {post.comment_count ?? 0}
             </span>
+            {total > 0 && <PieChart empathy={empathy} disempathy={disempathy} />}
           </div>
           <span className="opacity-0 group-hover:opacity-100 transition-opacity">댓글 보기 →</span>
         </div>
-
-        {total > 0 && (
-          <div className="flex items-center gap-2 mb-2 text-xs">
-            <span className="text-emerald-400">{empathy} 공감</span>
-            <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-emerald-500 transition-all"
-                style={{ width: `${empathyPercent}%` }}
-              />
-            </div>
-            <span className="text-rose-400">{disempathy} 비공감</span>
-          </div>
-        )}
 
         <Timer createdAt={post.created_at} expiresAt={post.expires_at} onExpire={handleExpire} />
       </article>
