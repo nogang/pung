@@ -30,6 +30,7 @@ function CommentItem({
   postId,
   postAuthorId,
   currentUserId,
+  currentUserReaction,
   onReplyCreated,
   lastVisit,
   depth = 0,
@@ -38,6 +39,7 @@ function CommentItem({
   postId: string;
   postAuthorId: string;
   currentUserId: string;
+  currentUserReaction: 'empathy' | 'disempathy' | null;
   onReplyCreated: () => void;
   lastVisit: number;
   depth?: number;
@@ -91,8 +93,10 @@ function CommentItem({
           <div className="mt-2">
             <CommentForm
               postId={postId}
+              postAuthorId={postAuthorId}
               parentId={comment.id}
               placeholder="답글을 작성하세요..."
+              existingReaction={currentUserReaction}
               onCommentCreated={() => {
                 setShowReplyForm(false);
                 onReplyCreated();
@@ -109,6 +113,7 @@ function CommentItem({
           postId={postId}
           postAuthorId={postAuthorId}
           currentUserId={currentUserId}
+          currentUserReaction={currentUserReaction}
           onReplyCreated={onReplyCreated}
           lastVisit={lastVisit}
           depth={depth + 1}
@@ -121,6 +126,26 @@ function CommentItem({
 interface ReactionCounts {
   empathy: number;
   disempathy: number;
+}
+
+function findUserReaction(comments: CommentWithReplies[], userId: string, postAuthorId: string): 'empathy' | 'disempathy' | null {
+  // Post author cannot vote
+  if (userId === postAuthorId) return null;
+
+  let reaction: 'empathy' | 'disempathy' | null = null;
+
+  function search(commentList: CommentWithReplies[]) {
+    for (const comment of commentList) {
+      if (comment.author_id === userId && reaction === null) {
+        reaction = comment.reaction_type;
+        return;
+      }
+      search(comment.replies);
+    }
+  }
+
+  search(comments);
+  return reaction;
 }
 
 function countReactions(comments: CommentWithReplies[], postAuthorId: string): ReactionCounts {
@@ -235,6 +260,7 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
 
   const reactions = countReactions(comments, postAuthorId);
   const total = reactions.empathy + reactions.disempathy;
+  const currentUserReaction = findUserReaction(comments, currentUserId, postAuthorId);
 
   return (
     <div className="space-y-4">
@@ -257,7 +283,12 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
         </div>
       )}
 
-      <CommentForm postId={postId} onCommentCreated={fetchComments} />
+      <CommentForm
+        postId={postId}
+        postAuthorId={postAuthorId}
+        existingReaction={currentUserReaction}
+        onCommentCreated={fetchComments}
+      />
 
       <div className="space-y-2">
         {comments.length === 0 ? (
@@ -270,6 +301,7 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
               postId={postId}
               postAuthorId={postAuthorId}
               currentUserId={currentUserId}
+              currentUserReaction={currentUserReaction}
               onReplyCreated={fetchComments}
               lastVisit={lastVisit}
             />
