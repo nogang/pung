@@ -18,19 +18,47 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [authorId, setAuthorId] = useState('');
   const [lastVisit, setLastVisit] = useState(0);
+  const [visitedPosts, setVisitedPosts] = useState<Set<string>>(new Set());
+
+  // Update visited posts when page becomes visible
+  const updateVisitedPosts = useCallback(() => {
+    const visited = new Set<string>();
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('pung_post_visit_')) {
+        const postId = key.replace('pung_post_visit_', '');
+        visited.add(postId);
+      }
+    }
+    setVisitedPosts(visited);
+  }, []);
 
   useEffect(() => {
     setAuthorId(generateAuthorId());
     const lastVisitTime = getLastVisitTime();
     setLastVisit(lastVisitTime);
+    updateVisitedPosts();
 
     // Update last visit time after a short delay so new posts can be marked
     const timer = setTimeout(() => {
       updateLastVisitTime();
     }, 3000);
 
-    return () => clearTimeout(timer);
-  }, []);
+    // Listen for visibility changes to update visited posts
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateVisitedPosts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', updateVisitedPosts);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', updateVisitedPosts);
+    };
+  }, [updateVisitedPosts]);
 
   const fetchPosts = useCallback(async () => {
     // Fetch posts
@@ -197,7 +225,7 @@ export default function Home() {
                   post.author_id !== authorId &&
                   lastVisit > 0 &&
                   isNewSinceLastVisit(post.created_at, lastVisit) &&
-                  getLastPostVisitTime(post.id) === 0
+                  !visitedPosts.has(post.id)
                 }
               />
             </div>
