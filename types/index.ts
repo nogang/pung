@@ -5,6 +5,8 @@ export interface Post {
   created_at: string;
   expires_at: string;
   comment_count?: number;
+  empathy_count?: number;
+  disempathy_count?: number;
 }
 
 export interface Comment {

@@ -32,7 +32,7 @@ export default function Home() {
   }, []);
 
   const fetchPosts = useCallback(async () => {
-    // Fetch posts with comment count
+    // Fetch posts
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
       .select('*')
@@ -44,25 +44,35 @@ export default function Home() {
       return;
     }
 
-    // Fetch comment counts for all posts
-    const { data: commentCounts, error: countError } = await supabase
+    // Fetch comments with reaction types
+    const { data: comments, error: countError } = await supabase
       .from('comments')
-      .select('post_id');
+      .select('post_id, reaction_type');
 
     if (countError) {
-      console.error('Error fetching comment counts:', countError);
+      console.error('Error fetching comments:', countError);
     }
 
-    // Count comments per post
+    // Count comments and reactions per post
     const countMap = new Map<string, number>();
-    commentCounts?.forEach((c) => {
+    const empathyMap = new Map<string, number>();
+    const disempathyMap = new Map<string, number>();
+
+    comments?.forEach((c) => {
       countMap.set(c.post_id, (countMap.get(c.post_id) || 0) + 1);
+      if (c.reaction_type === 'empathy') {
+        empathyMap.set(c.post_id, (empathyMap.get(c.post_id) || 0) + 1);
+      } else {
+        disempathyMap.set(c.post_id, (disempathyMap.get(c.post_id) || 0) + 1);
+      }
     });
 
-    // Merge comment counts into posts
+    // Merge counts into posts
     const postsWithCounts = (postsData as Post[]).map((post) => ({
       ...post,
       comment_count: countMap.get(post.id) || 0,
+      empathy_count: empathyMap.get(post.id) || 0,
+      disempathy_count: disempathyMap.get(post.id) || 0,
     }));
 
     setPosts(postsWithCounts);

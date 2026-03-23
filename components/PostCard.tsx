@@ -29,6 +29,11 @@ export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProp
     );
   }
 
+  const empathy = post.empathy_count ?? 0;
+  const disempathy = post.disempathy_count ?? 0;
+  const total = empathy + disempathy;
+  const empathyPercent = total > 0 ? (empathy / total) * 100 : 0;
+
   return (
     <Link href={`/post/${post.id}`}>
       <article className={`bg-zinc-800/50 hover:bg-zinc-800/70 rounded-xl p-4 border transition-all cursor-pointer group ${isMine ? 'border-emerald-600/50' : 'border-zinc-700'}`}>
@@ -45,8 +50,9 @@ export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProp
           )}
         </div>
         <p className="text-white whitespace-pre-wrap break-words mb-3">{post.content}</p>
+
         <div className="flex items-center justify-between text-sm text-zinc-500 mb-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <span>{formatRelativeTime(post.created_at)}</span>
             <span className="flex items-center gap-1">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,6 +63,20 @@ export default function PostCard({ post, onExpire, isNew, isMine }: PostCardProp
           </div>
           <span className="opacity-0 group-hover:opacity-100 transition-opacity">댓글 보기 →</span>
         </div>
+
+        {total > 0 && (
+          <div className="flex items-center gap-2 mb-2 text-xs">
+            <span className="text-emerald-400">{empathy} 공감</span>
+            <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 transition-all"
+                style={{ width: `${empathyPercent}%` }}
+              />
+            </div>
+            <span className="text-rose-400">{disempathy} 비공감</span>
+          </div>
+        )}
+
         <Timer createdAt={post.created_at} expiresAt={post.expires_at} onExpire={handleExpire} />
       </article>
     </Link>
