@@ -24,7 +24,7 @@ export default function CommentForm({
   existingReaction,
 }: CommentFormProps) {
   const [content, setContent] = useState('');
-  const [reactionType, setReactionType] = useState<'empathy' | 'disempathy'>(existingReaction || 'empathy');
+  const [reactionType, setReactionType] = useState<'empathy' | 'disempathy' | null>(existingReaction || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authorId, setAuthorId] = useState('');
 
@@ -37,14 +37,18 @@ export default function CommentForm({
   const hasVoted = existingReaction !== null && existingReaction !== undefined;
   const canVote = !isPostAuthor && !hasVoted;
 
+  // Can write comment if: post author, already voted, or has selected a reaction
+  const canWrite = isPostAuthor || hasVoted || reactionType !== null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() || isSubmitting) return;
+    if (canVote && !reactionType) return;
 
     setIsSubmitting(true);
 
     // Use existing reaction if already voted, or empathy for post author
-    const finalReaction = canVote ? reactionType : (existingReaction || 'empathy');
+    const finalReaction = hasVoted ? existingReaction : (isPostAuthor ? 'empathy' : reactionType);
 
     const { error } = await supabase.from('comments').insert({
       post_id: postId,
@@ -70,29 +74,34 @@ export default function CommentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
       {canVote && (
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setReactionType('empathy')}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              reactionType === 'empathy'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
-            }`}
-          >
-            공감
-          </button>
-          <button
-            type="button"
-            onClick={() => setReactionType('disempathy')}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              reactionType === 'disempathy'
-                ? 'bg-rose-600 text-white'
-                : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
-            }`}
-          >
-            비공감
-          </button>
+        <div className="space-y-2">
+          <div className="text-xs text-zinc-400">
+            {reactionType === null ? '공감 또는 비공감을 선택하세요' : ''}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setReactionType('empathy')}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                reactionType === 'empathy'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+              }`}
+            >
+              공감
+            </button>
+            <button
+              type="button"
+              onClick={() => setReactionType('disempathy')}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                reactionType === 'disempathy'
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+              }`}
+            >
+              비공감
+            </button>
+          </div>
         </div>
       )}
       {hasVoted && !isPostAuthor && (
@@ -107,32 +116,41 @@ export default function CommentForm({
           작성자는 공감/비공감 투표에 참여할 수 없습니다
         </div>
       )}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={placeholder}
-          className="flex-1 bg-zinc-700/50 text-white placeholder-zinc-500 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          maxLength={200}
-        />
-        <button
-          type="submit"
-          disabled={!content.trim() || isSubmitting}
-          className="px-3 py-2 bg-zinc-600 hover:bg-zinc-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          {isSubmitting ? '...' : '작성'}
-        </button>
-        {onCancel && (
+
+      {canWrite && (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 bg-zinc-700/50 text-white placeholder-zinc-500 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            maxLength={200}
+          />
           <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 py-2 bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg text-sm font-medium transition-colors"
+            type="submit"
+            disabled={!content.trim() || isSubmitting}
+            className={`px-3 py-2 ${
+              reactionType === 'empathy' || isPostAuthor
+                ? 'bg-emerald-600 hover:bg-emerald-500'
+                : reactionType === 'disempathy'
+                ? 'bg-rose-600 hover:bg-rose-500'
+                : 'bg-zinc-600 hover:bg-zinc-500'
+            } disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors`}
           >
-            취소
+            {isSubmitting ? '...' : '작성'}
           </button>
-        )}
-      </div>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-3 py-2 bg-zinc-600 hover:bg-zinc-500 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              취소
+            </button>
+          )}
+        </div>
+      )}
     </form>
   );
 }
