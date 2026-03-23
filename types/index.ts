@@ -14,6 +14,7 @@ export interface Comment {
   content: string;
   author_id: string;
   created_at: string;
+  reaction_type: 'empathy' | 'disempathy';
 }
 
 export interface CommentWithReplies extends Comment {

@@ -47,11 +47,15 @@ function CommentItem({
   const isCurrentUser = comment.author_id === currentUserId;
   const isNew = lastVisit > 0 && isNewSinceLastVisit(comment.created_at, lastVisit);
   const replyCount = countAllReplies(comment);
+  const isEmpathy = comment.reaction_type === 'empathy';
 
   return (
     <div className={`${depth > 0 ? 'ml-6 border-l border-zinc-700 pl-4' : ''}`}>
-      <div className="py-2">
-        <div className="flex items-center gap-2 mb-1">
+      <div className={`py-2 px-3 rounded-lg ${isEmpathy ? 'bg-emerald-900/10' : 'bg-rose-900/10'}`}>
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className={`text-xs px-1.5 py-0.5 rounded ${isEmpathy ? 'bg-emerald-600/20 text-emerald-400' : 'bg-rose-600/20 text-rose-400'}`}>
+            {isEmpathy ? '공감' : '비공감'}
+          </span>
           <span className={`text-xs font-medium ${isAuthor ? 'text-emerald-400' : isCurrentUser ? 'text-blue-400' : 'text-zinc-400'}`}>
             {isAuthor ? '작성자' : isCurrentUser ? '나' : '익명'}
           </span>
@@ -112,6 +116,30 @@ function CommentItem({
   );
 }
 
+interface ReactionCounts {
+  empathy: number;
+  disempathy: number;
+}
+
+function countReactions(comments: CommentWithReplies[]): ReactionCounts {
+  let empathy = 0;
+  let disempathy = 0;
+
+  function count(commentList: CommentWithReplies[]) {
+    commentList.forEach((comment) => {
+      if (comment.reaction_type === 'empathy') {
+        empathy++;
+      } else {
+        disempathy++;
+      }
+      count(comment.replies);
+    });
+  }
+
+  count(comments);
+  return { empathy, disempathy };
+}
+
 export default function CommentList({ postId, postAuthorId }: CommentListProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,7 +151,6 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
     const lastVisitTime = getLastPostVisitTime(postId);
     setLastVisit(lastVisitTime);
 
-    // Update post visit time after a short delay so new comments can be marked
     const timer = setTimeout(() => {
       updatePostVisitTime(postId);
     }, 3000);
@@ -190,8 +217,30 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
     return <div className="text-zinc-500 text-center py-4">댓글 로딩 중...</div>;
   }
 
+  const reactions = countReactions(comments);
+  const total = reactions.empathy + reactions.disempathy;
+
   return (
     <div className="space-y-4">
+      {total > 0 && (
+        <div className="flex items-center gap-4 p-3 bg-zinc-800/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-400 font-medium">{reactions.empathy}</span>
+            <span className="text-zinc-500 text-sm">공감</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-rose-400 font-medium">{reactions.disempathy}</span>
+            <span className="text-zinc-500 text-sm">비공감</span>
+          </div>
+          <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 transition-all"
+              style={{ width: `${(reactions.empathy / total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <CommentForm postId={postId} onCommentCreated={fetchComments} />
 
       <div className="space-y-2">
