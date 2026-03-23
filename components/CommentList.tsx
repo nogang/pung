@@ -4,11 +4,25 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Comment, CommentWithReplies } from '@/types';
 import CommentForm from './CommentForm';
-import { formatRelativeTime, generateAuthorId } from '@/lib/utils';
+import {
+  formatRelativeTime,
+  generateAuthorId,
+  getLastPostVisitTime,
+  updatePostVisitTime,
+  isNewSinceLastVisit,
+} from '@/lib/utils';
 
 interface CommentListProps {
   postId: string;
   postAuthorId: string;
+}
+
+function countAllReplies(comment: CommentWithReplies): number {
+  let count = comment.replies.length;
+  comment.replies.forEach((reply) => {
+    count += countAllReplies(reply);
+  });
+  return count;
 }
 
 function CommentItem({
@@ -17,6 +31,7 @@ function CommentItem({
   postAuthorId,
   currentUserId,
   onReplyCreated,
+  lastVisit,
   depth = 0,
 }: {
   comment: CommentWithReplies;
@@ -24,31 +39,48 @@ function CommentItem({
   postAuthorId: string;
   currentUserId: string;
   onReplyCreated: () => void;
+  lastVisit: number;
   depth?: number;
 }) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const isAuthor = comment.author_id === postAuthorId;
   const isCurrentUser = comment.author_id === currentUserId;
+  const isNew = lastVisit > 0 && isNewSinceLastVisit(comment.created_at, lastVisit);
+  const replyCount = countAllReplies(comment);
 
   return (
     <div className={`${depth > 0 ? 'ml-6 border-l border-zinc-700 pl-4' : ''}`}>
       <div className="py-2">
         <div className="flex items-center gap-2 mb-1">
-          <span className={`text-xs font-medium ${isAuthor ? 'text-emerald-400' : 'text-zinc-400'}`}>
-            {isAuthor ? '작성자' : '익명'}
-            {isCurrentUser && !isAuthor && ' (나)'}
+          <span className={`text-xs font-medium ${isAuthor ? 'text-emerald-400' : isCurrentUser ? 'text-blue-400' : 'text-zinc-400'}`}>
+            {isAuthor ? '작성자' : isCurrentUser ? '나' : '익명'}
           </span>
           <span className="text-xs text-zinc-600">{formatRelativeTime(comment.created_at)}</span>
+          {isNew && (
+            <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded animate-pulse">
+              NEW
+            </span>
+          )}
         </div>
         <p className="text-white text-sm">{comment.content}</p>
-        {depth < 2 && (
-          <button
-            onClick={() => setShowReplyForm(!showReplyForm)}
-            className="text-xs text-zinc-500 hover:text-zinc-300 mt-1"
-          >
-            답글
-          </button>
-        )}
+        <div className="flex items-center gap-3 mt-1">
+          {depth < 2 && (
+            <button
+              onClick={() => setShowReplyForm(!showReplyForm)}
+              className="text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              답글
+            </button>
+          )}
+          {replyCount > 0 && depth === 0 && (
+            <span className="text-xs text-zinc-500 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              {replyCount}
+            </span>
+          )}
+        </div>
         {showReplyForm && (
           <div className="mt-2">
             <CommentForm
@@ -72,6 +104,7 @@ function CommentItem({
           postAuthorId={postAuthorId}
           currentUserId={currentUserId}
           onReplyCreated={onReplyCreated}
+          lastVisit={lastVisit}
           depth={depth + 1}
         />
       ))}
@@ -83,10 +116,20 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState('');
+  const [lastVisit, setLastVisit] = useState(0);
 
   useEffect(() => {
     setCurrentUserId(generateAuthorId());
-  }, []);
+    const lastVisitTime = getLastPostVisitTime(postId);
+    setLastVisit(lastVisitTime);
+
+    // Update post visit time after a short delay so new comments can be marked
+    const timer = setTimeout(() => {
+      updatePostVisitTime(postId);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [postId]);
 
   const fetchComments = useCallback(async () => {
     const { data, error } = await supabase
@@ -163,6 +206,7 @@ export default function CommentList({ postId, postAuthorId }: CommentListProps) 
               postAuthorId={postAuthorId}
               currentUserId={currentUserId}
               onReplyCreated={fetchComments}
+              lastVisit={lastVisit}
             />
           ))
         )}

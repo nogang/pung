@@ -4,6 +4,7 @@ export interface Post {
   author_id: string;
   created_at: string;
   expires_at: string;
+  comment_count?: number;
 }
 
 export interface Comment {

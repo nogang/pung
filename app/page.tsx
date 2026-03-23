@@ -5,31 +5,74 @@ import { supabase } from '@/lib/supabase';
 import { Post } from '@/types';
 import PostForm from '@/components/PostForm';
 import PostCard from '@/components/PostCard';
+import {
+  generateAuthorId,
+  getLastVisitTime,
+  updateLastVisitTime,
+  isNewSinceLastVisit,
+} from '@/lib/utils';
 
 export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [authorId, setAuthorId] = useState('');
+  const [lastVisit, setLastVisit] = useState(0);
+
+  useEffect(() => {
+    setAuthorId(generateAuthorId());
+    const lastVisitTime = getLastVisitTime();
+    setLastVisit(lastVisitTime);
+
+    // Update last visit time after a short delay so new posts can be marked
+    const timer = setTimeout(() => {
+      updateLastVisitTime();
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchPosts = useCallback(async () => {
-    const { data, error } = await supabase
+    // Fetch posts with comment count
+    const { data: postsData, error: postsError } = await supabase
       .from('posts')
       .select('*')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching posts:', error);
+    if (postsError) {
+      console.error('Error fetching posts:', postsError);
       return;
     }
 
-    setPosts(data as Post[]);
+    // Fetch comment counts for all posts
+    const { data: commentCounts, error: countError } = await supabase
+      .from('comments')
+      .select('post_id');
+
+    if (countError) {
+      console.error('Error fetching comment counts:', countError);
+    }
+
+    // Count comments per post
+    const countMap = new Map<string, number>();
+    commentCounts?.forEach((c) => {
+      countMap.set(c.post_id, (countMap.get(c.post_id) || 0) + 1);
+    });
+
+    // Merge comment counts into posts
+    const postsWithCounts = (postsData as Post[]).map((post) => ({
+      ...post,
+      comment_count: countMap.get(post.id) || 0,
+    }));
+
+    setPosts(postsWithCounts);
     setIsLoading(false);
   }, []);
 
   useEffect(() => {
     fetchPosts();
 
-    const channel = supabase
+    const postsChannel = supabase
       .channel('posts')
       .on(
         'postgres_changes',
@@ -44,8 +87,24 @@ export default function Home() {
       )
       .subscribe();
 
+    const commentsChannel = supabase
+      .channel('comments-count')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comments',
+        },
+        () => {
+          fetchPosts();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(postsChannel);
+      supabase.removeChannel(commentsChannel);
     };
   }, [fetchPosts]);
 
@@ -70,7 +129,12 @@ export default function Home() {
         <div className="space-y-4">
           {posts.map((post) => (
             <div key={post.id} className="animate-fade-in">
-              <PostCard post={post} onExpire={() => handlePostExpire(post.id)} />
+              <PostCard
+                post={post}
+                onExpire={() => handlePostExpire(post.id)}
+                isMine={post.author_id === authorId}
+                isNew={lastVisit > 0 && isNewSinceLastVisit(post.created_at, lastVisit)}
+              />
             </div>
           ))}
         </div>

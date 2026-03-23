@@ -49,3 +49,30 @@ export function formatRelativeTime(createdAt: string): string {
   if (minutes < 60) return `${minutes}분 전`;
   return '1시간 전';
 }
+
+export function getLastVisitTime(): number {
+  if (typeof window === 'undefined') return 0;
+  const stored = localStorage.getItem('pung_last_visit');
+  return stored ? parseInt(stored, 10) : 0;
+}
+
+export function updateLastVisitTime(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('pung_last_visit', Date.now().toString());
+}
+
+export function getLastPostVisitTime(postId: string): number {
+  if (typeof window === 'undefined') return 0;
+  const stored = localStorage.getItem(`pung_post_visit_${postId}`);
+  return stored ? parseInt(stored, 10) : 0;
+}
+
+export function updatePostVisitTime(postId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(`pung_post_visit_${postId}`, Date.now().toString());
+}
+
+export function isNewSinceLastVisit(createdAt: string, lastVisit: number): boolean {
+  const created = new Date(createdAt).getTime();
+  return created > lastVisit;
+}
